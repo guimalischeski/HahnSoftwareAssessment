@@ -18,38 +18,48 @@ var builder = Host.CreateDefaultBuilder(args)
     {
         var configuration = hostContext.Configuration;
 
-        // Database
+        // Database Configuration
         services.AddDbContext<AppDbContext>(options =>
             options.UseSqlServer(configuration.GetConnectionString("DefaultConnection")));
 
-        // Hangfire
+        // Configure Hangfire Storage
         services.AddHangfire(config =>
             config.UseSqlServerStorage(configuration.GetConnectionString("DefaultConnection")));
+
+        // Start Hangfire Server
         services.AddHangfireServer();
 
         // Register Repository & Job
         services.AddScoped<ICatFactRepository, CatFactRepository>();
-        services.AddSingleton<ICatFactUpsertJob, CatFactUpsertJob>();  // Register via interface
+        services.AddScoped<ICatFactUpsertJob, CatFactUpsertJob>();
 
-        // Retrieve the Hangfire Job interval setting
-        var jobInterval = configuration["HangfireSettings:CatFactJobInterval"] ?? "Hourly";
+        // Register Hangfire Job Manager
+        services.AddSingleton<IRecurringJobManager, RecurringJobManager>();
+    });
 
-        // Set up Hangfire job schedule dynamically
-        var cronExpression = jobInterval switch
-        {
-            "Hourly" => Cron.Hourly(),   // Every hour
-            "Daily" => Cron.Daily(),     // Every day at midnight
-            "Weekly" => Cron.Weekly(),   // Every Sunday at midnight
-            _ => Cron.Hourly(),          // Default to hourly if unknown value
-        };
+var host = builder.Build();
 
-        // Schedule the job
-        RecurringJob.AddOrUpdate<ICatFactUpsertJob>(
-            "FetchCatFact",
-            job => job.Execute(),
-            cronExpression  // Dynamically set schedule
-        );
-    })
-    .Build();
+// Retrieve Job Interval from Config (before `using` block)
+var configuration = host.Services.GetRequiredService<IConfiguration>();
+var jobInterval = configuration["HangfireSettings:CatFactJobInterval"] ?? "Hourly";
 
-await builder.RunAsync();
+using (var scope = host.Services.CreateScope())
+{
+    var serviceProvider = scope.ServiceProvider;
+    var recurringJobManager = serviceProvider.GetRequiredService<IRecurringJobManager>();
+    var job = serviceProvider.GetRequiredService<ICatFactUpsertJob>();
+
+    string cronExpression = jobInterval switch
+    {
+        "Minutely" => Cron.Minutely(),
+        "Hourly" => Cron.Hourly(),
+        "Daily" => Cron.Daily(),
+        "Weekly" => Cron.Weekly(),
+        _ => Cron.Hourly()
+    };
+
+    // Use IRecurringJobManager instead of static RecurringJob.AddOrUpdate
+    recurringJobManager.AddOrUpdate("FetchCatFact", () => job.Execute(), cronExpression);
+}
+
+await host.RunAsync();

@@ -1,22 +1,30 @@
+using Domain.Interfaces;
 using Microsoft.EntityFrameworkCore;
 using Persistence;
+using Persistence.Repositories;
 
 var builder = WebApplication.CreateBuilder(args);
 
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
 
-// Fetch credentials from environment variables
-var dbUser = Environment.GetEnvironmentVariable("DB_USER");
-var dbPassword = Environment.GetEnvironmentVariable("DB_PASSWORD");
-
-if (!string.IsNullOrEmpty(dbUser) && !string.IsNullOrEmpty(dbPassword))
-{
-    connectionString += $";User Id={dbUser};Password={dbPassword};";
-}
-
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlServer(connectionString));
 
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowLocalhost", policy =>
+    {
+        policy.WithOrigins("http://localhost:8080")
+              .AllowAnyHeader()
+              .AllowAnyMethod();
+    });
+});
+
+builder.Services.AddControllers();
+
+builder.Services.AddTransient<ICatFactRepository, CatFactRepository>();
+
 var app = builder.Build();
 app.MapControllers();
+app.UseCors("AllowLocalhost");
 app.Run();

@@ -15,6 +15,10 @@ namespace WebAPI.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> Get() => Ok(await _repository.GetAllAsync());
+        public async Task<IActionResult> Get()
+        {
+            var response = await _repository.GetAllAsync();
+            return Ok(response);
+        }
     }
 }
