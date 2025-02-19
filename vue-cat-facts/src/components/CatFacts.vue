@@ -1,9 +1,27 @@
 <template>
-  <div>
-    <h1>Cat Facts</h1>
-    <ul>
-      <li v-for="fact in catFacts" :key="fact.id">{{ fact.fact }}</li>
-    </ul>
+  <div class="container mt-4">
+    <h2 class="mb-3">Cat Facts</h2>
+
+    <!-- Search Bar -->
+    <input
+      v-model="searchQuery"
+      class="form-control mb-3"
+      placeholder="Search cat facts..."
+    />
+
+    <!-- Table -->
+    <table class="table table-striped">
+      <thead>
+        <tr>
+          <th @click="sortBy('fact')">Fact</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr v-for="fact in filteredFacts" :key="fact.id">
+          <td>{{ fact.fact }}</td>
+        </tr>
+      </tbody>
+    </table>
   </div>
 </template>
 
@@ -11,29 +29,66 @@
 export default {
   data() {
     return {
-      catFacts: []
+      facts: [],
+      searchQuery: "",
+      sortColumn: "id",
+      sortAscending: true,
     };
   },
-  mounted() {
-    this.fetchCatFacts();
+  computed: {
+    // Filter and sort the facts
+    filteredFacts() {
+      let filtered = this.facts;
+
+      // Filter by search query
+      if (this.searchQuery) {
+        filtered = filtered.filter((fact) =>
+          fact.fact.toLowerCase().includes(this.searchQuery.toLowerCase())
+        );
+      }
+
+      // Sort data
+      return filtered.sort((a, b) => {
+        const valueA = a[this.sortColumn];
+        const valueB = b[this.sortColumn];
+
+        if (typeof valueA === "string") {
+          return this.sortAscending
+            ? valueA.localeCompare(valueB)
+            : valueB.localeCompare(valueA);
+        }
+
+        return this.sortAscending ? valueA - valueB : valueB - valueA;
+      });
+    },
   },
   methods: {
     async fetchCatFacts() {
       try {
-        var response = await fetch('https://localhost:7298/api/CatFact');
-        if (!response.ok) {
-          throw new Error('Failed to fetch cat facts');
-        }
-        var data = await response.json();
-        console.log(data);
-        this.catFacts = data;
+        const response = await fetch("https://localhost:7298/api/CatFact");
+        if (!response.ok) throw new Error("API error");
+        this.facts = await response.json();
       } catch (error) {
-        console.error("Error fetching cat facts:", error);
+        console.error("Error fetching data:", error);
       }
-    }
-  }
+    },
+    sortBy(column) {
+      if (this.sortColumn === column) {
+        this.sortAscending = !this.sortAscending;
+      } else {
+        this.sortColumn = column;
+        this.sortAscending = true;
+      }
+    },
+  },
+  mounted() {
+    this.fetchCatFacts();
+  },
 };
 </script>
 
-<style scoped>
+<style>
+th {
+  cursor: pointer;
+}
 </style>
